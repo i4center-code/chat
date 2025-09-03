@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تالار گفتمان ایران افیکس</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        /* استایل‌های عمومی با پیشوند AA76 */
         .AA76-container {
             box-sizing: border-box;
             margin: 0;
@@ -621,11 +622,11 @@
         <div class="AA76-chat-container">
             <div class="AA76-chat-header">
                 <div class="AA76-chat-title">گفتگوی تریدرها</div>
-                <div class="AA76-online-count" id="AA76-onlineCount">۳۴ آنلاین</div>
+                <div class="AA76-online-count" id="AA76-onlineCount">۰ آنلاین</div>
             </div>
             
             <div class="AA76-chat-messages" id="AA76-chatMessages">
-                <!-- Messages will be loaded here -->
+                <div class="AA76-loading">در حال بارگذاری پیام‌ها...</div>
             </div>
             
             <div class="AA76-chat-input-container">
@@ -694,13 +695,25 @@
     </div>
 
     <script>
+        // پیکربندی Firebase با اطلاعات شما
+        const AA76_firebaseConfig = {
+            apiKey: "AIzaSyAmgGn86QlOdb1mYBgGGWdto5ljzGhKk8s",
+            authDomain: "iranfx-chat.firebaseapp.com",
+            databaseURL: "https://iranfx-chat-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "iranfx-chat",
+            storageBucket: "iranfx-chat.firebasestorage.app",
+            messagingSenderId: "728128902903",
+            appId: "1:728128902903:web:70b0d864888895c2faa5f2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(AA76_firebaseConfig);
+        const AA76_database = firebase.database();
+
         // Global variables with AA76 prefix
         let AA76_currentUser = null;
-        let AA76_onlineUsers = {};
-        let AA76_allMessages = [];
         const AA76_ADMIN_EMAIL = "info@iranfxapp.ir";
         const AA76_ADMIN_USERNAME = "ایران افیکس";
-        let AA76_onlineCount = 34; // شروع از ۳۴ کاربر آنلاین
         
         // Elements with AA76 prefix
         const AA76_loginScreen = document.getElementById('AA76-loginScreen');
@@ -725,33 +738,6 @@
         
         // Initialize the app
         function AA76_init() {
-            // Load messages from localStorage
-            const savedMessages = localStorage.getItem('AA76_forumMessages');
-            if (savedMessages) {
-                AA76_allMessages = JSON.parse(savedMessages);
-            } else {
-                // Add initial messages if no messages exist
-                AA76_allMessages = [
-                    {
-                        id: 1,
-                        sender: "مدیر سیستم",
-                        text: "به تالار گفتمان ایران افیکس خوش آمدید. لطفا قوانین را رعایت کنید.",
-                        time: "۱۰:۰۵",
-                        date: "۱۴۰۲/۰۵/۱۵",
-                        isAdmin: true
-                    },
-                    {
-                        id: 2,
-                        sender: "پشتیبانی",
-                        text: "این تالار گفتگو مخصوص بحث و تبادل نظر در مورد بازارهای مالی است.",
-                        time: "۱۰:۱۵",
-                        date: "۱۴۰۲/۰۵/۱۵",
-                        isAdmin: true
-                    }
-                ];
-                localStorage.setItem('AA76_forumMessages', JSON.stringify(AA76_allMessages));
-            }
-            
             // Check if user is already logged in
             const savedUser = localStorage.getItem('AA76_currentUser');
             if (savedUser) {
@@ -761,17 +747,11 @@
             
             // Set up event listeners
             AA76_setupEventListeners();
-            
-            // Update online users periodically
-            setInterval(AA76_updateOnlineUsers, 5000);
-            
-            // Set initial online count
-            AA76_onlineCountElement.textContent = `${AA76_onlineCount} آنلاین`;
         }
         
         // Set up event listeners
         function AA76_setupEventListeners() {
-            // Use onclick for better compatibility with Puzzley
+            // Use onclick for better compatibility
             AA76_loginButtonElement.onclick = AA76_loginUser;
             AA76_usernameInputElement.onkeypress = function(e) {
                 if (e.key === 'Enter') {
@@ -829,26 +809,6 @@
             };
             
             AA76_logoutBtn.onclick = AA76_logoutUser;
-            
-            // Add touch events for mobile compatibility
-            AA76_sendButtonElement.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                AA76_sendMessage();
-            }, {passive: false});
-            
-            AA76_loginButtonElement.addEventListener('touchstart', function(e) {
-                e.preventDefault();
-                AA76_loginUser();
-            }, {passive: false});
-            
-            AA76_emojiButtons.forEach(btn => {
-                btn.addEventListener('touchstart', function(e) {
-                    e.preventDefault();
-                    AA76_messageInputElement.value += this.textContent;
-                    AA76_emojiPickerContainer.classList.remove('show');
-                    AA76_messageInputElement.focus();
-                }, {passive: false});
-            });
         }
         
         // Login functionality
@@ -873,26 +833,12 @@
             };
             
             localStorage.setItem('AA76_currentUser', JSON.stringify(AA76_currentUser));
-            
-            // Add user to online users
-            AA76_onlineUsers[AA76_currentUser.id] = {
-                name: AA76_currentUser.name,
-                lastSeen: Date.now()
-            };
-            localStorage.setItem('AA76_onlineUsers', JSON.stringify(AA76_onlineUsers));
-            
             AA76_initializeChat();
         }
         
         // Logout functionality
         function AA76_logoutUser() {
             if (confirm('آیا از خروج اطمینان دارید؟')) {
-                // Remove user from online users
-                if (AA76_currentUser && AA76_currentUser.id) {
-                    delete AA76_onlineUsers[AA76_currentUser.id];
-                    localStorage.setItem('AA76_onlineUsers', JSON.stringify(AA76_onlineUsers));
-                }
-                
                 // Clear current user
                 localStorage.removeItem('AA76_currentUser');
                 AA76_currentUser = null;
@@ -903,6 +849,9 @@
                 // Reset form
                 AA76_usernameInputElement.value = '';
                 AA76_adminEmailInputElement.value = '';
+                
+                // Remove Firebase listeners
+                AA76_database.ref('messages').off();
             }
         }
         
@@ -923,11 +872,8 @@
             // Hide login screen
             AA76_loginScreen.style.display = 'none';
             
-            // Load messages
+            // Load messages from Firebase
             AA76_loadMessages();
-            
-            // Update online count
-            AA76_updateOnlineUsers();
         }
         
         // Send message functionality
@@ -945,11 +891,8 @@
                 isAdmin: AA76_currentUser.isAdmin
             };
             
-            // Save message
+            // Save message to Firebase
             AA76_saveMessage(message);
-            
-            // Add message to UI
-            AA76_addMessageToUI(message);
             
             // Clear input
             AA76_messageInputElement.value = '';
@@ -972,11 +915,8 @@
                     isAdmin: AA76_currentUser.isAdmin
                 };
                 
-                // Save message
+                // Save message to Firebase
                 AA76_saveMessage(message);
-                
-                // Add message to UI
-                AA76_addMessageToUI(message);
                 
                 // Reset file input
                 AA76_imageInputElement.value = '';
@@ -984,24 +924,30 @@
             reader.readAsDataURL(file);
         }
         
-        // Save message to storage
+        // Save message to Firebase
         function AA76_saveMessage(message) {
-            AA76_allMessages.push(message);
-            localStorage.setItem('AA76_forumMessages', JSON.stringify(AA76_allMessages));
+            AA76_database.ref('messages').push(message);
         }
         
-        // Load messages from storage
+        // Load messages from Firebase
         function AA76_loadMessages() {
             // Clear current messages
-            AA76_chatMessagesElement.innerHTML = '';
+            AA76_chatMessagesElement.innerHTML = '<div class="AA76-loading">در حال بارگذاری پیام‌ها...</div>';
             
-            // Load from storage
-            AA76_allMessages.forEach(message => {
-                AA76_addMessageToUI(message);
+            // Load from Firebase
+            AA76_database.ref('messages').on('value', (snapshot) => {
+                AA76_chatMessagesElement.innerHTML = '';
+                const messages = snapshot.val();
+                
+                if (messages) {
+                    Object.values(messages).forEach(message => {
+                        AA76_addMessageToUI(message);
+                    });
+                }
+                
+                // Scroll to bottom
+                AA76_chatMessagesElement.scrollTop = AA76_chatMessagesElement.scrollHeight;
             });
-            
-            // Scroll to bottom
-            AA76_chatMessagesElement.scrollTop = AA76_chatMessagesElement.scrollHeight;
         }
         
         // Add message to UI
@@ -1043,9 +989,6 @@
             `;
             
             AA76_chatMessagesElement.appendChild(messageElement);
-            
-            // Scroll to bottom
-            AA76_chatMessagesElement.scrollTop = AA76_chatMessagesElement.scrollHeight;
         }
         
         // Delete message (admin only)
@@ -1053,19 +996,12 @@
             if (!AA76_currentUser.isAdmin) return;
             
             if (confirm('آیا از حذف این پیام اطمینان دارید؟')) {
-                // Find message index
-                const messageIndex = AA76_allMessages.findIndex(msg => msg.id === messageId);
-                
-                if (messageIndex !== -1) {
-                    // Remove message from array
-                    AA76_allMessages.splice(messageIndex, 1);
-                    
-                    // Update storage
-                    localStorage.setItem('AA76_forumMessages', JSON.stringify(AA76_allMessages));
-                    
-                    // Reload messages
-                    AA76_loadMessages();
-                }
+                // Find and remove message from Firebase
+                AA76_database.ref('messages').orderByChild('id').equalTo(parseInt(messageId)).once('value', (snapshot) => {
+                    snapshot.forEach((childSnapshot) => {
+                        childSnapshot.ref.remove();
+                    });
+                });
             }
         }
         
@@ -1073,13 +1009,6 @@
         function AA76_openImageModal(imageSrc) {
             AA76_modalImage.src = imageSrc;
             AA76_imageModal.style.display = 'flex';
-        }
-        
-        // Update online users
-        function AA76_updateOnlineUsers() {
-            // Simulate changing online users count
-            AA76_onlineCount = 34 + Math.floor(Math.random() * 7); // بین ۳۴ تا ۴۰ کاربر
-            AA76_onlineCountElement.textContent = `${AA76_onlineCount} آنلاین`;
         }
         
         // Initialize the app
